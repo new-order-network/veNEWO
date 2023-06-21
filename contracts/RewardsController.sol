@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.13;
 
 import {Owned} from "./Owned.sol";
 import {IRewards} from "./interfaces/IRewards.sol";
 import {IVeVault} from "./interfaces/IVeVault.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 /**
@@ -13,6 +13,8 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
  * @dev This contract is owned
  */
 contract RewardsController is Owned {
+    using SafeERC20 for IERC20;
+
     // Sum to 32 bytes
     struct RewardsContract {
         bool isAuth;
@@ -67,6 +69,8 @@ contract RewardsController is Owned {
     function addRewardsContract(
         address _rewardsContractAddress
     ) public onlyOwner {
+        if (_rewardsContractAddress == address(0))
+            revert RewardsContractCannotBeZero();
         if (rewardsContractsAuth[_rewardsContractAddress].isAuth) {
             revert RewardsContractAlreadyExists();
         }
@@ -188,7 +192,9 @@ contract RewardsController is Owned {
      * veToken balance, the rewards contract will shown the user as not
      * registered.
      */
-    function depositUserStatus(address user) public view returns (address[] memory) {
+    function depositUserStatus(
+        address user
+    ) public view returns (address[] memory) {
         uint length = rewardsContracts.length;
 
         address[] memory missingNotify = new address[](length);
@@ -271,14 +277,18 @@ contract RewardsController is Owned {
         uint256 balanceBefore = underlying.balanceOf(address(this));
 
         // Controller will receive a reward for kicking off the user
-        veVault.withdraw(veVault.assetBalanceOf(msg.sender), msg.sender, msg.sender);
+        veVault.withdraw(
+            veVault.assetBalanceOf(msg.sender),
+            msg.sender,
+            msg.sender
+        );
 
         // Balance after receiving rewards
         uint256 balanceAfter = underlying.balanceOf(address(this));
 
         // Calculate the amount of rewards to transfer to the user
         uint256 amount = balanceAfter - balanceBefore;
-        underlying.transfer(msg.sender, amount);
+        underlying.safeTransfer(msg.sender, amount);
     }
 
     /* ========= MODIFIERS ========== */
@@ -310,5 +320,6 @@ contract RewardsController is Owned {
 
     error RewardsContractNotFound();
     error RewardsContractAlreadyExists();
+    error RewardsContractCannotBeZero();
     error WrongTermsOfUse();
 }

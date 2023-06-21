@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -8,7 +8,6 @@ import "./interfaces/IVeVault.sol";
 
 // Inheritance
 import "./RewardsDistributionRecipient.sol";
-import "./Pausable.sol";
 import "./Trustable.sol";
 
 // Custom errors
@@ -27,7 +26,6 @@ error UserHasNoVeToken();
 contract Rewards is
     RewardsDistributionRecipient,
     ReentrancyGuard,
-    Pausable,
     Trustable
 {
     using SafeERC20 for IERC20;
@@ -35,7 +33,8 @@ contract Rewards is
     struct Account {
         uint256 rewardPerTokenPaid;
         uint256 rewards;
-        uint256 dueDate;
+        uint248 dueDate;
+        bool    isStarted;
     }
 
     /* ========== STATE VARIABLES ========== */
@@ -201,10 +200,10 @@ contract Rewards is
     {
         emit NotifyDeposit(
             user,
-            accounts[owner].rewardPerTokenPaid,
-            accounts[owner].dueDate
+            accounts[user].rewardPerTokenPaid,
+            accounts[user].dueDate
         );
-        return accounts[owner];
+        return accounts[user];
     }
 
     /**
@@ -325,9 +324,12 @@ contract Rewards is
         lastUpdateTime = lastTimeRewardApplicable(address(0));
 
         if (owner != address(0)) {
-            if (accounts[owner].rewardPerTokenPaid == 0)
+            if (!accounts[owner].isStarted)
+            {
+                accounts[owner].isStarted = true;
                 accounts[owner].rewardPerTokenPaid = rewardPerTokenStored;
-            accounts[owner].dueDate = IVeVault(vault).unlockDate(owner);
+            }
+            accounts[owner].dueDate = uint248(IVeVault(vault).unlockDate(owner));
             accounts[owner].rewards = earned(owner);
             accounts[owner].rewardPerTokenPaid = rewardPerToken(address(0));
         }
